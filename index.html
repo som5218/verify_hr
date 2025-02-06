@@ -3,9 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <title>Buscador de Licenciatario</title>
-    <!-- Incluir estilos y scripts de PyScript -->
-    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
-    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <!-- Estilos -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -34,7 +32,6 @@
         border: 1px solid #ccc;
         border-radius: 4px;
       }
-      /* Centrar el botón */
       button#buscar {
         display: block;
         margin: 0 auto;
@@ -58,12 +55,9 @@
       #resultados p {
         margin: 0.5em 0;
       }
-      /* Oculta el contenido de py-env y py-script para que no se muestre en la página */
-      py-env,
-      py-script {
-        display: none;
-      }
     </style>
+    <!-- Incluir Papa Parse desde CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   </head>
   <body>
     <div class="container">
@@ -76,62 +70,71 @@
       <div id="resultados"></div>
     </div>
 
-    <!-- Especificar los paquetes a instalar con PyScript -->
-    <py-env>
-- pandas
-- openpyxl
-    </py-env>
+    <script>
+      // Variable global para almacenar los datos del CSV
+      let csvData = [];
 
-    <!-- Código Python ejecutado con PyScript -->
-    <py-script>
-import pandas as pd
-from pyodide.http import open_url
-from js import document, alert
+      // URL para exportar la hoja de Google Sheets como CSV
+      // IMPORTANTE: La hoja debe estar publicada en la web.
+      const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRPpxcRaekv1gZMCicnNAuE6MXSis-PVP1Rj3boZc_uMliN3D6OzYhX1Zk4KNr_Tw/pub?output=csv";
 
-def extraer_primeros_7(nit):
-    """
-    Extrae los primeros 7 dígitos del NIT, eliminando el dígito de verificación si existe.
-    """
-    if isinstance(nit, str):
-        nit = nit.split('-')[0]
-    return nit[:7]
+      // Función para cargar y parsear el CSV
+      function cargarCSV() {
+        fetch(csvUrl)
+          .then(response => response.text())
+          .then(csvText => {
+            const parsed = Papa.parse(csvText, { header: true });
+            csvData = parsed.data;
+            console.log("Datos cargados:", csvData);
+          })
+          .catch(error => {
+            console.error("Error al cargar el CSV:", error);
+            alert("Error al cargar los datos. Revisa la consola para más detalles.");
+          });
+      }
 
-# Intentar cargar el archivo Excel usando open_url para obtenerlo vía HTTP
-try:
-    # open_url obtiene el archivo y lo retorna como un objeto file-like
-    df = pd.read_excel(open_url("LICENCIATARIO.xlsx"))
-    df["NIT_TRUNCADO"] = df["NIT"].astype(str).apply(extraer_primeros_7)
-except Exception as e:
-    alert(f"No se pudo cargar el archivo Excel:\n{e}")
-    df = None
+      // Función para extraer los primeros 7 caracteres del NIT (antes del guion, si existe)
+      function extraerPrimeros7(nit) {
+        if (!nit) return "";
+        let partes = nit.split("-");
+        return partes[0].substring(0, 7);
+      }
 
-def buscar_nit(event=None):
-    if df is None:
-        alert("El archivo Excel no se cargó correctamente.")
-        return
+      // Función para buscar coincidencias por NIT
+      function buscarNit() {
+        const inputNIT = document.getElementById("nit").value.trim();
+        if (!inputNIT) {
+          alert("Por favor, ingresa un NIT para buscar.");
+          return;
+        }
+        const nitTruncado = extraerPrimeros7(inputNIT);
+        const resultadosDiv = document.getElementById("resultados");
+        resultadosDiv.innerHTML = ""; // Limpiar resultados previos
 
-    # Obtener el valor ingresado en el campo de texto
-    nit_usuario = document.getElementById("nit").value.strip()
-    if not nit_usuario:
-        alert("Debe ingresar un NIT.")
-        return
+        // Filtrar las filas que coincidan en los primeros 7 caracteres del NIT
+        let coincidencias = csvData.filter(row => {
+          // Verifica que existan las columnas necesarias
+          if (!row["NIT"] || !row["RAZON SOCIAL"]) return false;
+          let rowNITTruncado = extraerPrimeros7(row["NIT"].toString());
+          return rowNITTruncado === nitTruncado;
+        });
 
-    nit_usuario_truncado = extraer_primeros_7(nit_usuario)
-    resultado = df[df["NIT_TRUNCADO"] == nit_usuario_truncado]
+        // Mostrar los resultados
+        if (coincidencias.length > 0) {
+          resultadosDiv.innerHTML += "<h3>Coincidencias encontradas:</h3>";
+          coincidencias.forEach(row => {
+            resultadosDiv.innerHTML += `<p>NIT: ${row["NIT"]} - RAZON SOCIAL: ${row["RAZON SOCIAL"]}</p>`;
+          });
+        } else {
+          resultadosDiv.innerHTML = "<p>No se encontró ninguna coincidencia para el NIT ingresado.</p>";
+        }
+      }
 
-    # Limpiar el contenedor de resultados
-    resultados_div = document.getElementById("resultados")
-    resultados_div.innerHTML = ""
-
-    if not resultado.empty:
-        resultados_div.innerHTML += "<h3>Coincidencias encontradas:</h3>"
-        for index, row in resultado.iterrows():
-            resultados_div.innerHTML += f"<p>NIT: {row['NIT']} - RAZON SOCIAL: {row['RAZON SOCIAL']}</p>"
-    else:
-        resultados_div.innerHTML = "<p>No se encontró ninguna coincidencia para el NIT ingresado.</p>"
-
-# Asociar el evento click del botón a la función buscar_nit
-document.getElementById("buscar").addEventListener("click", buscar_nit)
-    </py-script>
+      // Asignar el evento al botón de búsqueda una vez que el DOM esté cargado
+      document.addEventListener("DOMContentLoaded", function() {
+        cargarCSV();
+        document.getElementById("buscar").addEventListener("click", buscarNit);
+      });
+    </script>
   </body>
 </html>
