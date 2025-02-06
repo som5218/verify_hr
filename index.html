@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <title>Buscador de Licenciatario</title>
+    <!-- Incluir estilos y scripts de PyScript -->
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f8f8f8;
+        padding: 2em;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 1.5em;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+      }
+      label {
+        font-weight: bold;
+      }
+      input[type="text"] {
+        width: 100%;
+        padding: 0.5em;
+        margin: 0.5em 0 1em;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+      /* Centrar el botón */
+      button#buscar {
+        display: block;
+        margin: 0 auto;
+        padding: 0.5em 1em;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button#buscar:hover {
+        background: #0056b3;
+      }
+      #resultados {
+        margin-top: 1em;
+      }
+      #resultados h3 {
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 0.5em;
+      }
+      #resultados p {
+        margin: 0.5em 0;
+      }
+      /* Oculta el contenido de py-env y py-script para que no se muestre en la página */
+      py-env,
+      py-script {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Buscador de Licenciatario</h1>
+      <div>
+        <label for="nit">Ingrese el NIT a buscar:</label>
+        <input type="text" id="nit" placeholder="Ejemplo: 1234567-8">
+        <button id="buscar">Buscar</button>
+      </div>
+      <div id="resultados"></div>
+    </div>
+
+    <!-- Especificar los paquetes a instalar con PyScript -->
+    <py-env>
+- pandas
+- openpyxl
+    </py-env>
+
+    <!-- Código Python ejecutado con PyScript -->
+    <py-script>
+import pandas as pd
+from pyodide.http import open_url
+from js import document, alert
+
+def extraer_primeros_7(nit):
+    """
+    Extrae los primeros 7 dígitos del NIT, eliminando el dígito de verificación si existe.
+    """
+    if isinstance(nit, str):
+        nit = nit.split('-')[0]
+    return nit[:7]
+
+# Intentar cargar el archivo Excel usando open_url para obtenerlo vía HTTP
+try:
+    # open_url obtiene el archivo y lo retorna como un objeto file-like
+    df = pd.read_excel(open_url("LICENCIATARIO.xlsx"))
+    df["NIT_TRUNCADO"] = df["NIT"].astype(str).apply(extraer_primeros_7)
+except Exception as e:
+    alert(f"No se pudo cargar el archivo Excel:\n{e}")
+    df = None
+
+def buscar_nit(event=None):
+    if df is None:
+        alert("El archivo Excel no se cargó correctamente.")
+        return
+
+    # Obtener el valor ingresado en el campo de texto
+    nit_usuario = document.getElementById("nit").value.strip()
+    if not nit_usuario:
+        alert("Debe ingresar un NIT.")
+        return
+
+    nit_usuario_truncado = extraer_primeros_7(nit_usuario)
+    resultado = df[df["NIT_TRUNCADO"] == nit_usuario_truncado]
+
+    # Limpiar el contenedor de resultados
+    resultados_div = document.getElementById("resultados")
+    resultados_div.innerHTML = ""
+
+    if not resultado.empty:
+        resultados_div.innerHTML += "<h3>Coincidencias encontradas:</h3>"
+        for index, row in resultado.iterrows():
+            resultados_div.innerHTML += f"<p>NIT: {row['NIT']} - RAZON SOCIAL: {row['RAZON SOCIAL']}</p>"
+    else:
+        resultados_div.innerHTML = "<p>No se encontró ninguna coincidencia para el NIT ingresado.</p>"
+
+# Asociar el evento click del botón a la función buscar_nit
+document.getElementById("buscar").addEventListener("click", buscar_nit)
+    </py-script>
+  </body>
+</html>
